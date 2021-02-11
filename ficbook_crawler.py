@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, SoupStrainer
+from bs4 import BeautifulSoup
 import re
 import requests
 import pandas as pd
@@ -19,6 +19,8 @@ def get_content(page_soup):
     if not story_content:
         return ''
     content = re.sub(r'\t', '\n\n\n\n', story_content.text)
+    content = re.sub(r' ', ' ', content)
+    content = '\n'.join([line for line in content.split('\n') if line.strip()])
     return content
 
 

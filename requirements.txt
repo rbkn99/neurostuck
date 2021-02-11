@@ -1,0 +1,7 @@
+pandas>=1.2.2
+requests>=2.25.1
+lxml>=4.6.2
+cchardet>=2.1.7
+beautifulsoup4>=4.9.3
+joblib>=1.0.1
+python-telegram-bot>=13.2
