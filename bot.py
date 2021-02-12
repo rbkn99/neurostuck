@@ -156,6 +156,7 @@ def generate(update: Update, context: CallbackContext) -> int:
     if len(network_input) == 0:
         network_input = '.'
     network_stdout = network_process.communicate(input=str.encode(network_input))[0]
+    print(network_stdout)
     update.message.reply_text(network_stdout.decode('utf-8'))
     return ConversationHandler.END
 
