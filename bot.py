@@ -1,4 +1,5 @@
 import logging
+from subprocess import Popen, PIPE, STDOUT
 
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, ParseMode
 from telegram.ext import (
@@ -14,6 +15,13 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+network_process = Popen(['python3',
+                         'network/generate_transformers.py',
+                         '--model_type=gpt2',
+                         '--model_name_or_path=network/comment_model',
+                         '--k=5', '--p=0.95', '--length=350'],
+                        stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 
 CHOOSE_GENERATE_OPTION, CREATE_PAIRING, SECOND_CHARACTER, GENERATE_BY_TEXT, GENERATE = range(5)
 
@@ -43,6 +51,7 @@ characters_keyboard = [[characters[j] for j in range(i, i + cols)]
 
 def start(update: Update, context: CallbackContext) -> int:
     reply_keyboard = [[opt] for opt in generation_options.values()]
+    context.user_data = {}
     update.message.reply_text(
         'Привет! Я могу генерировать фанфики по Хоумстаку. Начнём??\n'
         'Пришли /cancel если захочешь отменить текущую генерацию.',
@@ -67,7 +76,7 @@ def choose_gen_option(update: Update, context: CallbackContext) -> int:
         )
         return GENERATE_BY_TEXT
     if response == generation_options[GENERATE]:
-        return generate(context)
+        return generate(update, context)
 
 
 def choose_first_pairing(update: Update, context: CallbackContext) -> int:
@@ -95,7 +104,7 @@ def choose_second_pairing(update: Update, context: CallbackContext) -> int:
         'Вы выбрали пейринг *{}/{}*. Запускаю генерацию!'.format(context.user_data['first_character'],
                                                                  second_character),
         reply_markup=ReplyKeyboardRemove(), parse_mode=ParseMode.MARKDOWN)
-    return generate(context)
+    return generate(update, context)
 
 
 def skip_second_pairing(update: Update, context: CallbackContext) -> int:
@@ -105,7 +114,7 @@ def skip_second_pairing(update: Update, context: CallbackContext) -> int:
         'Вы выбрали пейринг *{}*. Запускаю генерацию!'.format(context.user_data['first_character']),
         reply_markup=ReplyKeyboardRemove(), parse_mode=ParseMode.MARKDOWN
     )
-    return generate(context)
+    return generate(update, context)
 
 
 def generate_by_text(update: Update, context: CallbackContext) -> int:
@@ -114,7 +123,7 @@ def generate_by_text(update: Update, context: CallbackContext) -> int:
     context.user_data['text_beginning'] = text
     logger.info("User %s send \"%s\" as the text beginning.", user.first_name, text)
     update.message.reply_text('Запускаю генерацию!', reply_markup=ReplyKeyboardRemove())
-    return generate(context)
+    return generate(update, context)
 
 
 def cancel(update: Update, context: CallbackContext) -> int:
@@ -133,7 +142,21 @@ def help_info(update: Update, context: CallbackContext):
     update.message.reply_text(help_text, reply_markup=ReplyKeyboardRemove())
 
 
-def generate(context: CallbackContext) -> int:
+def generate(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text(
+        'Фанфик генерируется, это займет немного времени...', reply_markup=ReplyKeyboardRemove()
+    )
+    network_input = ''
+    if 'first_character' in context.user_data:
+        network_input += context.user_data['first_character']
+    if 'second_character' in context.user_data:
+        network_input += ' ' + context.user_data['second_character']
+    if 'text_beginning' in context.user_data:
+        network_input += ' ' + context.user_data['text_beginning']
+    if len(network_input) == 0:
+        network_input = '.'
+    network_stdout = network_process.communicate(input=str.encode(network_input))[0]
+    update.message.reply_text(network_stdout.decode('utf-8'))
     return ConversationHandler.END
 
 
@@ -153,7 +176,7 @@ def main() -> None:
             SECOND_CHARACTER: [
                 MessageHandler(default_filter, choose_second_pairing),
                 CommandHandler('skip', skip_second_pairing)],
-            GENERATE_BY_TEXT: [ MessageHandler(default_filter, generate_by_text) ]
+            GENERATE_BY_TEXT: [MessageHandler(default_filter, generate_by_text)]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
