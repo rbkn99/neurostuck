@@ -21,7 +21,7 @@ network_process = Popen(['python3',
                          '--model_type=gpt2',
                          '--model_name_or_path=network/comment_model',
                          '--k=5', '--p=0.95', '--length=350'],
-                        stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+                        stdout=PIPE, stdin=PIPE, stderr=STDOUT, text=True)
 
 CHOOSE_GENERATE_OPTION, CREATE_PAIRING, SECOND_CHARACTER, GENERATE_BY_TEXT, GENERATE = range(5)
 
@@ -155,9 +155,10 @@ def generate(update: Update, context: CallbackContext) -> int:
         network_input += ' ' + context.user_data['text_beginning']
     if len(network_input) == 0:
         network_input = '.'
-    network_stdout = network_process.communicate(input=str.encode(network_input))[0]
+    network_process.stdout.readlines()
+    network_stdout = network_process.communicate(input=network_input)[0]
     print(network_stdout)
-    update.message.reply_text(network_stdout.decode('utf-8'))
+    update.message.reply_text(network_stdout)
     return ConversationHandler.END
 
 
